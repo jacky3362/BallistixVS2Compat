@@ -1,0 +1,57 @@
+plugins {
+    id 'java-library'
+    id 'net.minecraftforge.gradle' version "${forge_gradle_version}"
+    id 'org.parchmentmc.librarian.forgegradle' version "${parchent_librarian_version}.+"
+}
+
+group = 'ballistix.compat'
+version = "${minecraft_version}-0.1.0"
+
+base {
+    archivesName = 'BallistixVS2Compat'
+}
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(17)
+
+minecraft {
+    mappings channel: 'parchment', version: "${parchment_version}-${minecraft_version}"
+
+    runs {
+        client {
+            workingDirectory project.file('../run')
+            property 'forge.logging.console.level', 'debug'
+            mods {
+                ballistixvs2compat {
+                    source sourceSets.main
+                }
+            }
+        }
+
+        server {
+            workingDirectory project.file('../run')
+            property 'forge.logging.console.level', 'debug'
+            mods {
+                ballistixvs2compat {
+                    source sourceSets.main
+                }
+            }
+        }
+    }
+}
+
+dependencies {
+    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+    implementation project(':')
+}
+
+repositories {
+    mavenLocal()
+    mavenCentral()
+    maven {
+        url = 'https://api.modrinth.com/maven'
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
