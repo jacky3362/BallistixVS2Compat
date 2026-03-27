@@ -10,6 +10,9 @@ import net.minecraft.world.phys.Vec3;
 
 public class VS2BallistixHook implements BallistixCompatHooks.Hook {
 
+    private static final int SHIP_LOCAL_TARGET_MAX_DISTANCE = 2048;
+    private static final double CONTROL_PANEL_TOO_CLOSE_DISTANCE = 100.0;
+
     @Override
     public Vec3 resolveLaunchPosition(Level level, BlockPos launcherPos, Vec3 defaultLaunchPos) {
         if (defaultLaunchPos == null || level == null || !VS2ReflectionBridge.isAvailable()) {
@@ -22,29 +25,79 @@ public class VS2BallistixHook implements BallistixCompatHooks.Hook {
 
     @Override
     public BlockPos resolveLaunchTarget(Level level, BlockPos launcherPos, BlockPos requestedTarget) {
-        return requestedTarget;
+        if (level == null || launcherPos == null || requestedTarget == null || !VS2ReflectionBridge.isAvailable()) {
+            return requestedTarget;
+        }
+
+        // If the target chunk exists, treat the coordinates as world-space from missile control input.
+        if (level.hasChunkAt(requestedTarget)) {
+            return requestedTarget;
+        }
+
+        // Only remap when target looks local to the launcher shipyard region.
+        if (requestedTarget.distManhattan(launcherPos) > SHIP_LOCAL_TARGET_MAX_DISTANCE) {
+            return requestedTarget;
+        }
+
+        Object launcherShip = VS2ReflectionBridge.getShipManagingPos(level, launcherPos);
+        if (launcherShip == null) {
+            return requestedTarget;
+        }
+
+        Vec3 mapped = VS2ReflectionBridge.toWorldCoordinates(
+                launcherShip,
+                new Vec3(requestedTarget.getX() + 0.5, requestedTarget.getY() + 0.5, requestedTarget.getZ() + 0.5));
+
+        if (mapped == null) {
+            return requestedTarget;
+        }
+
+        return BlockPos.containing(mapped);
     }
 
     @Override
     public BlockPos resolveDesignatorTarget(Level level, BlockPos launcherPos, BlockPos requestedTarget) {
-        return requestedTarget;
+        return resolveLaunchTarget(level, launcherPos, requestedTarget);
+    }
+
+    @Override
+    public BlockPos resolveHandToolTarget(Level level, Vec3 observerPosition, BlockPos lookedTarget) {
+        if (level == null || lookedTarget == null || !VS2ReflectionBridge.isAvailable()) {
+            return lookedTarget;
+        }
+
+        Vec3 lookedCenter = new Vec3(lookedTarget.getX() + 0.5, lookedTarget.getY() + 0.5, lookedTarget.getZ() + 0.5);
+        Vec3 mapped = VS2ReflectionBridge.toWorldCoordinates(level, lookedCenter);
+        if (mapped == null) {
+            return lookedTarget;
+        }
+
+        return BlockPos.containing(mapped);
+    }
+
+    @Override
+    public boolean isControlPanelTargetTooClose(Level level, BlockPos launcherPos, BlockPos requestedTarget) {
+        if (level == null || launcherPos == null || requestedTarget == null || !VS2ReflectionBridge.isAvailable()) {
+            return false;
+        }
+
+        Vec3 launcher = new Vec3(launcherPos.getX() + 0.5, launcherPos.getY() + 0.5, launcherPos.getZ() + 0.5);
+        Vec3 target = new Vec3(requestedTarget.getX() + 0.5, requestedTarget.getY() + 0.5, requestedTarget.getZ() + 0.5);
+
+        Vec3 worldLauncher = VS2ReflectionBridge.toWorldCoordinates(level, launcher);
+        Vec3 worldTarget = VS2ReflectionBridge.toWorldCoordinates(level, target);
+
+        if (worldLauncher == null || worldTarget == null) {
+            return false;
+        }
+
+        return worldLauncher.distanceTo(worldTarget) < CONTROL_PANEL_TOO_CLOSE_DISTANCE;
     }
 
     @Override
     public BlockPos resolveMissileTarget(ServerLevel level, VirtualMissile missile, BlockPos storedTarget) {
-        if (level == null || storedTarget == null || !VS2ReflectionBridge.isAvailable()) {
-            return storedTarget;
-        }
-
-        Object ship = VS2ReflectionBridge.getShipManagingPos(level, storedTarget);
-        if (ship == null) {
-            return storedTarget;
-        }
-
-        Vec3 worldPos = VS2ReflectionBridge.toWorldCoordinates(ship,
-                new Vec3(storedTarget.getX() + 0.5, storedTarget.getY() + 0.5, storedTarget.getZ() + 0.5));
-
-        return worldPos == null ? storedTarget : BlockPos.containing(worldPos);
+        // Keep target fixed after launch so missile-control coordinates are respected.
+        return storedTarget;
     }
 
     @Override

@@ -5,7 +5,6 @@ import java.lang.reflect.Modifier;
 import java.util.Collections;
 
 import net.minecraft.core.BlockPos;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 
@@ -38,11 +37,11 @@ public class VS2ReflectionBridge {
     }
 
     public static Object getShipManagingPos(Level level, BlockPos pos) {
-        if (!AVAILABLE || !(level instanceof ServerLevel serverLevel) || pos == null) {
+        if (!AVAILABLE || level == null || pos == null) {
             return null;
         }
 
-        Object shipWorld = getServerShipWorld(serverLevel);
+        Object shipWorld = getShipWorld(level);
         if (shipWorld == null) {
             return null;
         }
@@ -70,7 +69,7 @@ public class VS2ReflectionBridge {
     }
 
     public static Vec3 toWorldCoordinates(Level level, Vec3 position) {
-        if (!AVAILABLE || level == null || position == null || !(level instanceof ServerLevel)) {
+        if (!AVAILABLE || level == null || position == null) {
             return position;
         }
 
@@ -116,7 +115,7 @@ public class VS2ReflectionBridge {
         return Collections.emptyList();
     }
 
-    private static Object getServerShipWorld(ServerLevel level) {
+    private static Object getShipWorld(Level level) {
         Object core = invokeStatic(GET_VS_CORE);
         if (core == null) {
             return null;
@@ -124,13 +123,18 @@ public class VS2ReflectionBridge {
 
         Object hooks = invokeInstance(core, findMethod(core.getClass(), "getHooks"));
         if (hooks != null) {
-            Object shipWorld = invokeInstance(hooks, findMethod(hooks.getClass(), "getCurrentShipServerWorld"));
+            Object shipWorld = level.isClientSide
+                    ? invokeInstance(hooks, findMethod(hooks.getClass(), "getCurrentShipClientWorld"))
+                    : invokeInstance(hooks, findMethod(hooks.getClass(), "getCurrentShipServerWorld"));
+
             if (shipWorld != null) {
                 return shipWorld;
             }
         }
 
-        return invokeInstance(core, findMethod(core.getClass(), "getDummyShipWorldServer"));
+        return level.isClientSide
+                ? invokeInstance(core, findMethod(core.getClass(), "getDummyShipWorldClient"))
+                : invokeInstance(core, findMethod(core.getClass(), "getDummyShipWorldServer"));
     }
 
     private static Vec3 transformWithMatrix(Object matrix, Vec3 position) {
