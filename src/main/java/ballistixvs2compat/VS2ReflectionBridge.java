@@ -54,18 +54,13 @@ public class VS2ReflectionBridge {
         int chunkX = pos.getX() >> 4;
         int chunkZ = pos.getZ() >> 4;
 
-        Method byChunk = findMethod(loadedShips.getClass(), "getByChunkPos", int.class, int.class);
-        Object ship = invokeInstance(loadedShips, byChunk, chunkX, chunkZ);
+        Object ship = invokeByChunk(loadedShips, chunkX, chunkZ);
         if (ship != null) {
             return ship;
         }
 
         Object allShips = invokeInstance(shipWorld, findMethod(shipWorld.getClass(), "getAllShips"));
-        if (allShips == null) {
-            return null;
-        }
-
-        return invokeInstance(allShips, byChunk, chunkX, chunkZ);
+        return invokeByChunk(allShips, chunkX, chunkZ);
     }
 
     public static Vec3 toWorldCoordinates(Level level, Vec3 position) {
@@ -86,28 +81,25 @@ public class VS2ReflectionBridge {
             return position;
         }
 
-        Method direct = findMethod(ship.getClass(), "positionToWorld", Vec3.class);
-        Vec3 directResult = toVec3(invokeInstance(ship, direct, position));
+        Vec3 directResult = firstVec(
+                invokeInstance(ship, findMethod(ship.getClass(), "positionToWorld", Vec3.class), position));
         if (directResult != null) {
             return directResult;
         }
 
-        Object matrix = invokeInstance(ship, findMethod(ship.getClass(), "getShipToWorld"));
-        Vec3 matrixResult = transformWithMatrix(matrix, position);
+        Vec3 matrixResult = transformWithMatrix(
+                invokeInstance(ship, findMethod(ship.getClass(), "getShipToWorld")),
+                position);
         if (matrixResult != null) {
             return matrixResult;
         }
 
         Object transform = invokeInstance(ship, findMethod(ship.getClass(), "getTransform"));
-        if (transform != null) {
-            Object transformMatrix = invokeInstance(transform, findMethod(transform.getClass(), "getShipToWorld"));
-            matrixResult = transformWithMatrix(transformMatrix, position);
-            if (matrixResult != null) {
-                return matrixResult;
-            }
-        }
+        Vec3 transformed = transformWithMatrix(
+                transform == null ? null : invokeInstance(transform, findMethod(transform.getClass(), "getShipToWorld")),
+                position);
 
-        return position;
+        return transformed == null ? position : transformed;
     }
 
     public static Iterable<Vec3> positionToNearbyShips(Level level, Vec3 position) {
@@ -138,67 +130,44 @@ public class VS2ReflectionBridge {
     }
 
     private static Vec3 transformWithMatrix(Object matrix, Vec3 position) {
-        if (matrix == null || position == null) {
+        if (matrix == null || position == null || JOML_VECTOR3D == null) {
             return null;
         }
 
-        if (JOML_VECTOR3D != null) {
-            try {
-                Object output = JOML_VECTOR3D.getConstructor(double.class, double.class, double.class)
-                        .newInstance(position.x, position.y, position.z);
+        try {
+            Object output = JOML_VECTOR3D.getConstructor(double.class, double.class, double.class)
+                    .newInstance(position.x, position.y, position.z);
 
-                Method transformPositionXYZ = findMethod(
-                        matrix.getClass(),
-                        "transformPosition",
-                        double.class,
-                        double.class,
-                        double.class,
-                        JOML_VECTOR3D);
+            Method transformPositionXYZ = findMethod(
+                    matrix.getClass(),
+                    "transformPosition",
+                    double.class,
+                    double.class,
+                    double.class,
+                    JOML_VECTOR3D);
 
-                if (transformPositionXYZ != null) {
-                    Object result = invokeInstance(matrix, transformPositionXYZ, position.x, position.y, position.z, output);
-                    Vec3 fromResult = toVec3(result);
-                    if (fromResult != null) {
-                        return fromResult;
-                    }
-                    Vec3 fromOutput = toVec3(output);
-                    if (fromOutput != null) {
-                        return fromOutput;
-                    }
+            if (transformPositionXYZ != null) {
+                Object result = invokeInstance(matrix, transformPositionXYZ, position.x, position.y, position.z, output);
+                Vec3 fromResult = firstVec(result, output);
+                if (fromResult != null) {
+                    return fromResult;
                 }
-
-                Method transformPositionVec = findMethod(matrix.getClass(), "transformPosition", JOML_VECTOR3D);
-                if (transformPositionVec != null) {
-                    Object result = invokeInstance(matrix, transformPositionVec, output);
-                    Vec3 fromResult = toVec3(result);
-                    if (fromResult != null) {
-                        return fromResult;
-                    }
-                    return toVec3(output);
-                }
-            } catch (Throwable ignored) {
-
             }
+
+            Method transformPositionVec = findMethod(matrix.getClass(), "transformPosition", JOML_VECTOR3D);
+            if (transformPositionVec != null) {
+                Object result = invokeInstance(matrix, transformPositionVec, output);
+                return firstVec(result, output);
+            }
+        } catch (Throwable ignored) {
+
         }
 
         return null;
     }
 
     private static Class<?> loadClass(String className) {
-        ClassLoader contextLoader = Thread.currentThread().getContextClassLoader();
-        if (contextLoader != null) {
-            try {
-                return Class.forName(className, false, contextLoader);
-            } catch (Throwable ignored) {
-
-            }
-        }
-
-        try {
-            return Class.forName(className, false, VS2ReflectionBridge.class.getClassLoader());
-        } catch (Throwable ex) {
-            return null;
-        }
+        return tryLoad(className, Thread.currentThread().getContextClassLoader(), VS2ReflectionBridge.class.getClassLoader());
     }
 
     private static Method findMethod(Class<?> holder, String name, Class<?>... params) {
@@ -276,7 +245,43 @@ public class VS2ReflectionBridge {
                 return number.doubleValue();
             }
         } catch (Throwable ex) {
+        }
+        return null;
+    }
+
+    private static Class<?> tryLoad(String className, ClassLoader... loaders) {
+        if (loaders == null) {
             return null;
+        }
+        for (ClassLoader loader : loaders) {
+            if (loader == null) {
+                continue;
+            }
+            try {
+                return Class.forName(className, false, loader);
+            } catch (Throwable ignored) {
+            }
+        }
+        return null;
+    }
+
+    private static Object invokeByChunk(Object shipContainer, int chunkX, int chunkZ) {
+        if (shipContainer == null) {
+            return null;
+        }
+        Method byChunk = findMethod(shipContainer.getClass(), "getByChunkPos", int.class, int.class);
+        return invokeInstance(shipContainer, byChunk, chunkX, chunkZ);
+    }
+
+    private static Vec3 firstVec(Object... candidates) {
+        if (candidates == null) {
+            return null;
+        }
+        for (Object candidate : candidates) {
+            Vec3 vec = toVec3(candidate);
+            if (vec != null) {
+                return vec;
+            }
         }
         return null;
     }

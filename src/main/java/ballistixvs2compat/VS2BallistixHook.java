@@ -15,12 +15,7 @@ public class VS2BallistixHook implements BallistixCompatHooks.Hook {
 
     @Override
     public Vec3 resolveLaunchPosition(Level level, BlockPos launcherPos, Vec3 defaultLaunchPos) {
-        if (defaultLaunchPos == null || level == null || !VS2ReflectionBridge.isAvailable()) {
-            return defaultLaunchPos;
-        }
-
-        Vec3 worldPos = VS2ReflectionBridge.toWorldCoordinates(level, defaultLaunchPos);
-        return worldPos == null ? defaultLaunchPos : worldPos;
+        return toWorld(level, defaultLaunchPos);
     }
 
     @Override
@@ -29,13 +24,7 @@ public class VS2BallistixHook implements BallistixCompatHooks.Hook {
             return requestedTarget;
         }
 
-        // If the target chunk exists, treat the coordinates as world-space from missile control input.
-        if (level.hasChunkAt(requestedTarget)) {
-            return requestedTarget;
-        }
-
-        // Only remap when target looks local to the launcher shipyard region.
-        if (requestedTarget.distManhattan(launcherPos) > SHIP_LOCAL_TARGET_MAX_DISTANCE) {
+        if (level.hasChunkAt(requestedTarget) || isTargetTooFarFromLauncher(launcherPos, requestedTarget)) {
             return requestedTarget;
         }
 
@@ -44,9 +33,7 @@ public class VS2BallistixHook implements BallistixCompatHooks.Hook {
             return requestedTarget;
         }
 
-        Vec3 mapped = VS2ReflectionBridge.toWorldCoordinates(
-                launcherShip,
-                new Vec3(requestedTarget.getX() + 0.5, requestedTarget.getY() + 0.5, requestedTarget.getZ() + 0.5));
+        Vec3 mapped = toWorld(launcherShip, center(requestedTarget));
 
         if (mapped == null) {
             return requestedTarget;
@@ -66,8 +53,7 @@ public class VS2BallistixHook implements BallistixCompatHooks.Hook {
             return lookedTarget;
         }
 
-        Vec3 lookedCenter = new Vec3(lookedTarget.getX() + 0.5, lookedTarget.getY() + 0.5, lookedTarget.getZ() + 0.5);
-        Vec3 mapped = VS2ReflectionBridge.toWorldCoordinates(level, lookedCenter);
+        Vec3 mapped = toWorld(level, center(lookedTarget));
         if (mapped == null) {
             return lookedTarget;
         }
@@ -81,11 +67,8 @@ public class VS2BallistixHook implements BallistixCompatHooks.Hook {
             return false;
         }
 
-        Vec3 launcher = new Vec3(launcherPos.getX() + 0.5, launcherPos.getY() + 0.5, launcherPos.getZ() + 0.5);
-        Vec3 target = new Vec3(requestedTarget.getX() + 0.5, requestedTarget.getY() + 0.5, requestedTarget.getZ() + 0.5);
-
-        Vec3 worldLauncher = VS2ReflectionBridge.toWorldCoordinates(level, launcher);
-        Vec3 worldTarget = VS2ReflectionBridge.toWorldCoordinates(level, target);
+        Vec3 worldLauncher = toWorld(level, center(launcherPos));
+        Vec3 worldTarget = toWorld(level, center(requestedTarget));
 
         if (worldLauncher == null || worldTarget == null) {
             return false;
@@ -134,7 +117,7 @@ public class VS2BallistixHook implements BallistixCompatHooks.Hook {
             return false;
         }
 
-        if (level.hasChunkAt(blockPos) && level.isPositionEntityTicking(blockPos)) {
+        if (isTicking(level, blockPos)) {
             return true;
         }
 
@@ -142,17 +125,14 @@ public class VS2BallistixHook implements BallistixCompatHooks.Hook {
             return false;
         }
 
-        Vec3 worldPos = VS2ReflectionBridge.toWorldCoordinates(level, position);
-        if (worldPos != null) {
-            BlockPos worldBlock = BlockPos.containing(worldPos);
-            if (level.hasChunkAt(worldBlock) && level.isPositionEntityTicking(worldBlock)) {
-                return true;
-            }
+        Vec3 worldPos = toWorld(level, position);
+        if (worldPos != null && isTicking(level, BlockPos.containing(worldPos))) {
+            return true;
         }
 
         for (Vec3 candidate : VS2ReflectionBridge.positionToNearbyShips(level, position)) {
             BlockPos pos = BlockPos.containing(candidate);
-            if (level.hasChunkAt(pos) && level.isPositionEntityTicking(pos)) {
+            if (isTicking(level, pos)) {
                 return true;
             }
         }
@@ -166,23 +146,40 @@ public class VS2BallistixHook implements BallistixCompatHooks.Hook {
             return 0;
         }
 
-        if (level == null || !VS2ReflectionBridge.isAvailable()) {
-            return from.distanceTo(to);
-        }
+        Vec3 fromWorld = toWorld(level, from);
+        Vec3 toWorld = toWorld(level, to);
 
-        Vec3 fromWorld = VS2ReflectionBridge.toWorldCoordinates(level, from);
-        Vec3 toWorld = VS2ReflectionBridge.toWorldCoordinates(level, to);
-
-        if (fromWorld == null || toWorld == null) {
-            return from.distanceTo(to);
-        }
-
-        return fromWorld.distanceTo(toWorld);
+        return fromWorld == null || toWorld == null ? from.distanceTo(to) : fromWorld.distanceTo(toWorld);
     }
 
     private static boolean isSolid(ServerLevel level, BlockPos pos) {
         BlockState state = level.getBlockState(pos);
         return !state.getCollisionShape(level, pos).isEmpty();
+    }
+
+    private static boolean isTicking(ServerLevel level, BlockPos pos) {
+        return level.hasChunkAt(pos) && level.isPositionEntityTicking(pos);
+    }
+
+    private static boolean isTargetTooFarFromLauncher(BlockPos launcherPos, BlockPos requestedTarget) {
+        return requestedTarget.distManhattan(launcherPos) > SHIP_LOCAL_TARGET_MAX_DISTANCE;
+    }
+
+    private static Vec3 center(BlockPos pos) {
+        if (pos == null) {
+            return null;
+        }
+        return new Vec3(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
+    }
+
+    private static Vec3 toWorld(Level level, Vec3 position) {
+        Vec3 mapped = VS2ReflectionBridge.toWorldCoordinates(level, position);
+        return mapped == null ? position : mapped;
+    }
+
+    private static Vec3 toWorld(Object ship, Vec3 position) {
+        Vec3 mapped = VS2ReflectionBridge.toWorldCoordinates(ship, position);
+        return mapped == null ? position : mapped;
     }
 
 }
