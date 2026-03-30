@@ -1,0 +1,41 @@
+modLoader="javafml"
+loaderVersion="[47,)"
+license="All rights reserved"
+
+[[mods]]
+modId="ballistixvs2compat"
+version="${file.jarVersion}"
+displayName="Ballistix VS2 Compat"
+authors="jacky3362"
+description='''
+VS2 X Ballistix Compat for VS2 2.4.10 and Ballistix 1.20.1-1.0.1.
+Compatibility bridge between Ballistix and Valkyrien Skies 2.
+'''
+
+[[dependencies.ballistixvs2compat]]
+modId="forge"
+mandatory=true
+versionRange="[47.3.2,)"
+ordering="NONE"
+side="BOTH"
+
+[[dependencies.ballistixvs2compat]]
+modId="minecraft"
+mandatory=true
+versionRange="[1.20.1]"
+ordering="NONE"
+side="BOTH"
+
+[[dependencies.ballistixvs2compat]]
+modId="ballistix"
+mandatory=true
+versionRange="*"
+ordering="AFTER"
+side="BOTH"
+
+[[dependencies.ballistixvs2compat]]
+modId="valkyrienskies"
+mandatory=false
+versionRange="[2.4,2.5)"
+ordering="NONE"
+side="BOTH"

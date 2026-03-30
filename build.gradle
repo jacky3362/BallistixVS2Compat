@@ -1,0 +1,97 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+    id 'net.minecraftforge.gradle' version "${forge_gradle_version}"
+    id 'org.parchmentmc.librarian.forgegradle' version "${parchent_librarian_version}.+"
+}
+
+group = 'ballistix.compat'
+version = "${minecraft_version}-${compat_mod_version}"
+
+base {
+    archivesName = 'BallistixVS2Compat'
+}
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(17)
+
+sourceSets {
+    compatStubs {
+        java.srcDir 'stubs/main/java'
+    }
+}
+
+minecraft {
+    mappings channel: 'parchment', version: "${parchment_version}-${minecraft_version}"
+
+    runs {
+        client {
+            workingDirectory project.file('../run')
+            property 'forge.logging.console.level', 'debug'
+            mods {
+                ballistixvs2compat {
+                    source sourceSets.main
+                }
+            }
+        }
+
+        server {
+            workingDirectory project.file('../run')
+            property 'forge.logging.console.level', 'debug'
+            mods {
+                ballistixvs2compat {
+                    source sourceSets.main
+                }
+            }
+        }
+    }
+}
+
+dependencies {
+    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+    compileOnly fg.deobf("maven.modrinth:${ballistix_modrinth_id}:${minecraft_version}-${ballistix_version}")
+    runtimeOnly fg.deobf("maven.modrinth:${ballistix_modrinth_id}:${minecraft_version}-${ballistix_version}")
+    compileOnly fg.deobf("org.valkyrienskies:valkyrienskies-120-forge:${vs2_version}")
+    compileOnly "org.valkyrienskies.core:api:${vs_core_version}"
+}
+
+repositories {
+    mavenLocal()
+    mavenCentral()
+
+    maven {
+        name = 'Valkyrien Skies'
+        url = 'https://maven.valkyrienskies.org'
+    }
+
+    maven {
+        url = 'https://api.modrinth.com/maven'
+    }
+
+    maven {
+        name = "GitHubPackages"
+        url = "https://maven.pkg.github.com/octocat/hello-world"
+        credentials {
+            username = System.getenv("API_ACTOR")
+            password = System.getenv("API_TOKEN")
+        }
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+tasks.named('compileCompatStubsJava', JavaCompile).configure {
+    classpath += sourceSets.main.compileClasspath
+}
+
+tasks.named('compileJava', JavaCompile).configure {
+    dependsOn tasks.named('compileCompatStubsJava')
+    classpath += sourceSets.compatStubs.output
+}
+
+tasks.register('srcZip', Zip) {
+    archiveFileName = 'source-code.zip'
+    destinationDirectory = file("$buildDir/distributions")
+    from sourceSets.main.allSource
+}
