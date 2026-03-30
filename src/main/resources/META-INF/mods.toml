@@ -4,7 +4,7 @@ license="All rights reserved"
 
 [[mods]]
 modId="ballistixvs2compat"
-version="1.20.1-0.1.0"
+version="${file.jarVersion}"
 displayName="Ballistix VS2 Compat"
 authors="jacky3362"
 description='''
