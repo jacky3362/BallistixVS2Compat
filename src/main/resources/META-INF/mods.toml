@@ -37,5 +37,5 @@ side="BOTH"
 modId="valkyrienskies"
 mandatory=false
 versionRange="[2.4,2.5)"
-ordering="NONE"
+ordering="AFTER"
 side="BOTH"
