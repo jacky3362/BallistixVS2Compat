@@ -1,0 +1,16 @@
+{
+  "required": true,
+  "minVersion": "0.8.5",
+  "package": "ballistixvs2compat.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "refmap": "ballistixvs2compat.refmap.json",
+  "mixins": [
+    "MixinTileLauncherControlPanelT1",
+    "MixinTileLauncherPlatformT1"
+  ],
+  "client": [],
+  "server": [],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
