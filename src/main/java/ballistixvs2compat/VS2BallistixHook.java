@@ -4,8 +4,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import ballistix.api.compat.BallistixCompatHooks;
-import ballistix.api.missile.virtual.VirtualMissile;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
@@ -15,24 +13,19 @@ import net.minecraftforge.fml.ModList;
 import org.joml.Vector3d;
 import org.valkyrienskies.mod.common.VSGameUtilsKt;
 
-// TODO (mixin roadmap): If a future feature requires injecting into Ballistix or MC internals,
-//  the following setup steps are needed:
-//   1. Add `compileOnly "org.spongepowered:mixin:0.8.5"` and
-//      `annotationProcessor "org.spongepowered:mixin:0.8.5:processor"` to build.gradle dependencies.
-//   2. Create `src/main/resources/ballistixvs2compat.mixins.json` with proper package, refmap, and
-//      `mixins`/`client`/`server` lists.
-//   3. Add `[[mixins]] config="ballistixvs2compat.mixins.json"` to META-INF/mods.toml.
-//   4. Add `-mixin.config=ballistixvs2compat.mixins.json` to each run config args block in build.gradle.
-//   5. Add `attributes('MixinConfigs': 'ballistixvs2compat.mixins.json')` to the jar manifest.
-//   6. Verify that every @Mixin target class and @At descriptor matches Parchment 2023.08.13 mappings.
-public class VS2BallistixHook implements BallistixCompatHooks.Hook {
+/**
+ * Static VS2 utility methods called by the mixin classes.
+ * All coordinate conversions between ship-local space and world space live here.
+ */
+public final class VS2BallistixHook {
+
+    private VS2BallistixHook() {}
 
     private static final String VS2_MODID = "valkyrienskies";
     private static final int SHIP_LOCAL_TARGET_MAX_DISTANCE = 2048;
     private static final double CONTROL_PANEL_TOO_CLOSE_DISTANCE = 100.0;
 
-    @Override
-    public Vec3 resolveLaunchPosition(Level level, BlockPos launcherPos, Vec3 defaultLaunchPos) {
+    public static Vec3 resolveLaunchPosition(Level level, BlockPos launcherPos, Vec3 defaultLaunchPos) {
         if (defaultLaunchPos == null || level == null || !isVs2Available()) {
             return defaultLaunchPos;
         }
@@ -41,8 +34,7 @@ public class VS2BallistixHook implements BallistixCompatHooks.Hook {
         return worldPos == null ? defaultLaunchPos : worldPos;
     }
 
-    @Override
-    public BlockPos resolveLaunchTarget(Level level, BlockPos launcherPos, BlockPos requestedTarget) {
+    public static BlockPos resolveLaunchTarget(Level level, BlockPos launcherPos, BlockPos requestedTarget) {
         if (level == null || launcherPos == null || requestedTarget == null || !isVs2Available()) {
             return requestedTarget;
         }
@@ -73,13 +65,11 @@ public class VS2BallistixHook implements BallistixCompatHooks.Hook {
         return BlockPos.containing(mapped);
     }
 
-    @Override
-    public BlockPos resolveDesignatorTarget(Level level, BlockPos launcherPos, BlockPos requestedTarget) {
+    public static BlockPos resolveDesignatorTarget(Level level, BlockPos launcherPos, BlockPos requestedTarget) {
         return resolveLaunchTarget(level, launcherPos, requestedTarget);
     }
 
-    @Override
-    public BlockPos resolveHandToolTarget(Level level, Vec3 observerPosition, BlockPos lookedTarget) {
+    public static BlockPos resolveHandToolTarget(Level level, Vec3 observerPosition, BlockPos lookedTarget) {
         if (level == null || lookedTarget == null || !isVs2Available()) {
             return lookedTarget;
         }
@@ -93,8 +83,7 @@ public class VS2BallistixHook implements BallistixCompatHooks.Hook {
         return BlockPos.containing(mapped);
     }
 
-    @Override
-    public boolean isControlPanelTargetTooClose(Level level, BlockPos launcherPos, BlockPos requestedTarget) {
+    public static boolean isControlPanelTargetTooClose(Level level, BlockPos launcherPos, BlockPos requestedTarget) {
         if (level == null || launcherPos == null || requestedTarget == null || !isVs2Available()) {
             return false;
         }
@@ -112,14 +101,7 @@ public class VS2BallistixHook implements BallistixCompatHooks.Hook {
         return worldLauncher.distanceTo(worldTarget) < CONTROL_PANEL_TOO_CLOSE_DISTANCE;
     }
 
-    @Override
-    public BlockPos resolveMissileTarget(ServerLevel level, VirtualMissile missile, BlockPos storedTarget) {
-        // Keep target fixed after launch so missile-control coordinates are respected.
-        return storedTarget;
-    }
-
-    @Override
-    public BlockPos resolveCollisionSample(ServerLevel level, Vec3 ownerPosition, Vec3 samplePosition) {
+    public static BlockPos resolveCollisionSample(ServerLevel level, Vec3 ownerPosition, Vec3 samplePosition) {
         if (samplePosition == null) {
             return BlockPos.ZERO;
         }
@@ -146,8 +128,7 @@ public class VS2BallistixHook implements BallistixCompatHooks.Hook {
         return defaultPos;
     }
 
-    @Override
-    public boolean isPositionTicking(ServerLevel level, BlockPos blockPos, Vec3 position) {
+    public static boolean isPositionTicking(ServerLevel level, BlockPos blockPos, Vec3 position) {
         if (level == null || blockPos == null || position == null) {
             return false;
         }
@@ -178,8 +159,7 @@ public class VS2BallistixHook implements BallistixCompatHooks.Hook {
         return false;
     }
 
-    @Override
-    public double distance(Level level, Vec3 from, Vec3 to) {
+    public static double distance(Level level, Vec3 from, Vec3 to) {
         if (from == null || to == null) {
             return 0;
         }

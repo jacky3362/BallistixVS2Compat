@@ -14,12 +14,6 @@ base {
 
 java.toolchain.languageVersion = JavaLanguageVersion.of(17)
 
-sourceSets {
-    compatStubs {
-        java.srcDir 'stubs/main/java'
-    }
-}
-
 minecraft {
     mappings channel: 'parchment', version: "${parchment_version}-${minecraft_version}"
 
@@ -27,6 +21,7 @@ minecraft {
         client {
             workingDirectory project.file('../run')
             property 'forge.logging.console.level', 'debug'
+            arg '-mixin.config=ballistixvs2compat.mixins.json'
             mods {
                 ballistixvs2compat {
                     source sourceSets.main
@@ -37,6 +32,7 @@ minecraft {
         server {
             workingDirectory project.file('../run')
             property 'forge.logging.console.level', 'debug'
+            arg '-mixin.config=ballistixvs2compat.mixins.json'
             mods {
                 ballistixvs2compat {
                     source sourceSets.main
@@ -53,6 +49,7 @@ dependencies {
     compileOnly fg.deobf("org.valkyrienskies:valkyrienskies-120-forge:${vs2_version}")
     runtimeOnly fg.deobf("org.valkyrienskies:valkyrienskies-120-forge:${vs2_version}")
     compileOnly "org.valkyrienskies.core:api:${vs_core_version}"
+    annotationProcessor "org.spongepowered:mixin:0.8.5:processor"
 }
 
 repositories {
@@ -82,13 +79,10 @@ tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
 }
 
-tasks.named('compileCompatStubsJava', JavaCompile).configure {
-    classpath += sourceSets.main.compileClasspath
-}
-
-tasks.named('compileJava', JavaCompile).configure {
-    dependsOn tasks.named('compileCompatStubsJava')
-    classpath += sourceSets.compatStubs.output
+jar {
+    manifest {
+        attributes('MixinConfigs': 'ballistixvs2compat.mixins.json')
+    }
 }
 
 tasks.register('srcZip', Zip) {
